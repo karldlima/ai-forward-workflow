@@ -29,7 +29,7 @@ Curate and optimise the dynamic data the agent uses, without brute-force or full
 
 - Indexing: repository map plus AST (a "code graph")
 - Grep and `read_lines`
-- Memory management: tracking multi-turn history, compacting, user preferences over time
+- Memory management: tracking multi-turn history, compacting, user preferences over time, CodeGraph
 
 | Pros | Cons |
 | --- | --- |
