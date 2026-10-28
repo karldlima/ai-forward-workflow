@@ -23,7 +23,7 @@ This repo is the frame of reference for future software projects that follow thi
 This repo is the source of truth. A project repo starts with a single file of user requirements in natural language, and an agent follows the flow below against that project repo, reading the linked docs as it goes.
 
 1. Read the [artefacts](docs/development-environment/README.md#artefacts), including the commit, branch and PR conventions.
-2. [Break down](docs/development-environment/README.md#task-breakdown) the requirements into epics, user stories and tasks.
+2. [Break down](docs/development-environment/README.md#task-breakdown) the requirements into Jira epics, user stories and sub-tasks with the [`jira-design` skill](skills/jira-design/SKILL.md).
 3. [Execute](docs/development-environment/README.md#agent-taskbug-execution) each task or bug under the [practices](docs/practices.md): new branch, conventional commits, verification loop, PR from the template, documentation, stored memory.
 4. Escalate to a human where needed and track [HIFT](docs/development-environment/README.md#human-sanity-check--agent-escalation).
 5. After merge, [evaluate agent ROI](docs/development-environment/README.md#evaluation-of-agent-roi).
@@ -34,10 +34,10 @@ This repo is the source of truth. A project repo starts with a single file of us
 We measure accelerated delivery through **Agent ROI**:
 
 ```
-Agent ROI = benchmarked human time estimated - (agent time taken + HIFT + human review time)
+Agent ROI = benchmarked human time estimated - (agent time taken + HIFT)
 ```
 
-HIFT is human intervention fix time. See [Agent ROI](docs/development-environment/README.md#evaluation-of-agent-roi).
+HIFT is human intervention fix time, which includes the human's review time. See [Agent ROI](docs/development-environment/README.md#evaluation-of-agent-roi).
 
 We maintain high standards of:
 
@@ -62,6 +62,10 @@ We maintain high standards of:
 .
 ├── README.md
 ├── AI Forward Workflow.png
+├── skills/
+│   └── jira-design/
+│       ├── SKILL.md
+│       └── references/templates.md
 ├── docs/
 │   ├── practices.md
 │   ├── governance.md

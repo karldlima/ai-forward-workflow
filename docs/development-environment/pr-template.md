@@ -7,7 +7,7 @@ Copy the block below into the PR description. In a project repo, save it as `.gi
 ```markdown
 ## Ticket
 
-<!-- Link to the Monday ticket/bug -->
+<!-- Jira issue key and URL, for example PROJ-123 -->
 
 ## Description
 
