@@ -1,6 +1,6 @@
 # PR description template
 
-The agent fills this in when it writes the PR for a ticket or bug in [Agent task/bug execution](README.md#agent-taskbug-execution). Reviewers tick the same boxes during the [human sanity check](README.md#human-sanity-check--agent-escalation).
+The agent fills this in when it writes the PR for a ticket or bug in [Agent task/bug execution](../README.md). Reviewers tick the same boxes during the [human sanity check](../practices/harness-configuration.md).
 
 Copy the block below into the PR description. In a project repo, save it as `.github/pull_request_template.md` so GitHub pre-fills it.
 

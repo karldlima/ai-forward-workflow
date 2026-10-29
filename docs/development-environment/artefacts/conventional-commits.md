@@ -1,6 +1,6 @@
 # Commit convention
 
-Agents and humans write commits following [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/). It is used in [Agent task/bug execution](README.md#agent-taskbug-execution).
+Agents and humans write commits following [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/). It is used in [Agent task/bug execution](../README.md).
 
 ## Structure
 

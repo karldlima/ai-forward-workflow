@@ -11,8 +11,8 @@
 
 During governance meetings we review:
 
-- The time saved, from the agent's evaluation of ticket velocity ([Agent ROI](development-environment/README.md#evaluation-of-agent-roi))
-- The practices: [prompt/context engineering, harness configuration and verification loops](practices.md)
+- The time saved, from the agent's evaluation of ticket velocity ([Agent ROI](development-environment/README.md))
+- The practices: [prompt/context engineering, harness configuration and verification loops](development-environment/practices/README.md)
 
 Based on what the review shows, we adjust those practices accordingly.
 
