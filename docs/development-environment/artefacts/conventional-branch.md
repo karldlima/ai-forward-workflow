@@ -1,6 +1,6 @@
 # Branch convention
 
-Agents and humans name branches following [Conventional Branch](https://conventionalbranch.org/). It is used in [Agent task/bug execution](README.md#agent-taskbug-execution).
+Agents and humans name branches following [Conventional Branch](https://conventionalbranch.org/). It is used in [Agent task/bug execution](../README.md).
 
 ## Format
 
