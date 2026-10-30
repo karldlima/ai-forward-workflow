@@ -34,6 +34,8 @@ Inputs the agent and the team build from. They are files in an [`artefacts/`](ar
 | PR template              | [`pr-template.md`](artefacts/pr-template.md)                                     | [Agent task/bug execution](#agent-taskbug-execution)                                                        |
 | Standards and guidelines | `guidelines.md`                                                                  | [Agent task/bug execution](#agent-taskbug-execution), [Verification loops](practices/verification-loops.md) |
 | Harness preferences      | `harness-preferences.md`                                                         | [Agent task/bug execution](#agent-taskbug-execution)                                                        |
+| Practice changes         | `practice-changes.md`                                                            | [Agent task/bug execution](#agent-taskbug-execution)                                                        |
+| CI workflow              | `ci.yml`                                                                         | [Agent task/bug execution](#agent-taskbug-execution), [Verification loops](practices/verification-loops.md) |
 
 
 What they hold:
@@ -43,6 +45,8 @@ What they hold:
 - `dor.md` **and** `dod.md`**:** the Definition of Ready and Definition of Done each ticket carries.
 - `guidelines.md`**:** all global company engineering standards and guidelines: frontend development patterns (folder structure, compound components, HOC wrappers, providers, global state and so on), code smells, linting rules (JS, TypeScript checks) and Prettier preferences.
 - `harness-preferences.md`**:** the user's answers from `initialize` on execution environment, permissions and the multi-step agent system. It is git-ignored and passed between team members directly. See [harness configuration](practices/harness-configuration.md).
+- `practice-changes.md`**:** the committed log of changes to the practice settings made with `/workflow-configure`: the date, the setting, the old and new value and the reason. See [harness configuration](practices/harness-configuration.md).
+- `ci.yml`**:** the default GitHub Actions workflow that runs the project's tests on every push and pull request. Used only when the project has no CI of its own. See [verification loops](practices/verification-loops.md).
 
 **Defaults and project overrides.** When a project repo uses this workflow, it defaults to the artefacts in this repo's `artefacts/` folder. If the project has its own `artefacts/` folder at its repo root, the agent uses those instead: a file in the project's folder overrides the default of the same name, and any file the project does not have falls back to the default.
 
@@ -70,7 +74,7 @@ The agent plans from the ticket or bug, backed by [prompt engineering](practices
 2. Initialises the project when it takes on the task: looks in `boilerplate.md` for a skeleton template to bootstrap from, and in `guidelines.md` for the linting rules and Prettier preferences to set up.
 3. Checks `guidelines.md` for the frontend development patterns (folder structure, compound components, HOC wrappers, providers, global state) while thinking of solutions.
 4. Writes code in a new branch, following those patterns, the [branch convention](artefacts/conventional-branch.md) and the [commit convention](artefacts/conventional-commits.md). The branch, commits and PR title carry the Jira issue key.
-5. Runs its own [verification loop](practices/verification-loops.md) against `guidelines.md`, the project's CI automated tests and a `code-reviewer` subagent review, before making the PR. The first time, it asks the user whether the project has CI, and if not, asks them to add it now; without CI it has nothing to test against and notes that the CI check was skipped. If the loop cannot pass within its maximum of 5 iterations, it escalates (`escalate` mode).
+5. Runs its own [verification loop](practices/verification-loops.md) against `guidelines.md`, the project's CI automated tests and a `code-reviewer` subagent review, before making the PR. The first time, it asks the user whether the project has CI, and if not, adds the default [CI workflow](artefacts/ci.yml) for them, and in auto mode a stop hook runs the tests after each commit. If the loop cannot pass within its maximum of 5 iterations, it escalates (`escalate` mode).
 6. Runs the human sanity check (`sanity-check` mode): shows the user what changed and prompts them to review and confirm before the PR. The review time is logged as HIFT. If the agent cannot fix an issue at any point, it diverts to agent escalation (see [harness configuration](practices/harness-configuration.md)). Both can be turned off at `initialize`.
 7. Writes the PR for the ticket/bug using the [PR description template](artefacts/pr-template.md).
 8. Links the PR to the ticket and logs its own time (`link-pr` mode).

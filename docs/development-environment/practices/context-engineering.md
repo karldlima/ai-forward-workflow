@@ -36,7 +36,7 @@ Curate and optimise the dynamic data the agent uses, without brute-force or full
 
 ## Context habits in a project
 
-When a user is working in their own project that follows this workflow, the agent reads this file and does three things as the conversation goes on.
+When a user is working in their own project that follows this workflow, the agent reads this file and does three things as the conversation goes on. Each can be turned off or on again at any time with `/workflow-configure`, which records the choice in `artefacts/harness-preferences.md`.
 
 ### Remind the user to compact
 
