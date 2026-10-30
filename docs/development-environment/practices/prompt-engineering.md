@@ -25,4 +25,6 @@ When a user is prompting in their own project that follows this workflow, the ag
 
 If the user turns the suggestions off, the agent stops, for the format suggestions, the shot-example suggestions, or both, depending on what they asked to turn off. It keeps them off for the rest of the session, and does not suggest again unless the user asks for them back.
 
+To keep the suggestions off in future sessions, or to turn them back on, use `/workflow-configure`. The agent reads `artefacts/harness-preferences.md` before it suggests anything.
+
 Prompts that are already clear and complete, and short follow-ups in an ongoing task, need no suggestions.

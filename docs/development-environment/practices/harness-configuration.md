@@ -24,6 +24,15 @@ The setup of the execution environment, tools and guardrails for the workflow. I
 
 The answers to the `initialize` questions (execution environment, permissions and multi-step agent system) are stored in `artefacts/harness-preferences.md` in the project. The file is listed in the project's `.gitignore`, so it stays out of git. It is passed between team members directly: a teammate who has the file in their `artefacts/` folder is not asked again, and the agent reads it to know the environment, what it may use and whether subagents are on. A teammate without the file is asked the same questions, and writes their own.
 
+## Changing the practices later
+
+The user can change the settings of any practice at any time with the `workflow-configure` [skill](../../../skills/workflow-configure/SKILL.md): run `/workflow-configure` or just ask, for example "turn the multi-step agent system off" or "raise the iteration limit". It covers all four practices, not only the harness, and the agent:
+
+1. updates `artefacts/harness-preferences.md`, the local, git-ignored file with the user's current settings, and the change applies straight away
+2. appends the change (the date, the setting, the old and new value, and the reason) to `artefacts/practice-changes.md`
+
+`practice-changes.md` is committed to the repo. It is the record of how the project's practices differ from the defaults, so teammates can see what changed and why. When a teammate runs `initialize` without a local `harness-preferences.md`, the agent reads the log and offers to start from those changes. The agent does not commit the log on its own: it goes in the user's next commit.
+
 ## Execution environment
 
 Where the agent runs code and commands. The default is **localhost**. When a user starts a project with `/jira-design initialize`, the agent asks which they prefer and records the answer in `artefacts/harness-preferences.md`.
@@ -67,6 +76,35 @@ It is used mainly during [agent task/bug execution](../README.md), where the ind
 | Each instance works on one sub-goal | Parallel edits to the same files can conflict, and runs are harder to debug |
 
 During `initialize` the agent explains these trade-offs and asks the user whether to leave it on or turn it off. With it off, the primary agent works through the sub-goals one at a time itself.
+
+### Subagent roles
+
+A role is what a subagent is for: a name, a one-line responsibility, and the tools it needs, for example a researcher that reads and summarises, an implementer that writes the code, and a reviewer that checks it. Roles keep each subagent's context window small and its job narrow.
+
+When the multi-step agent system is on, the `subagent-roles` [hook](#hooks) fires when the user submits a multi-part prompt, at most once per session. The agent then offers to set up roles for subagents related to that prompt: it proposes two to four roles and the user accepts, edits or declines them. Accepted roles are saved locally, on the user's machine, as subagent definitions in `.claude/agents/<role>.md` in the project (frontmatter with the name, description and tools, then the role's system prompt), and `.claude/agents/` is added to the project's `.gitignore` so they are never committed. The primary agent then hands the matching sub-goals to those roles when it orchestrates the work. A role can be edited or deleted at any time by editing its file or asking the agent.
+
+## Hooks
+
+The workflow's Claude Code hooks are part of the harness. They are installed by `jira-design initialize`: the script `hooks/workflow-hook.sh` is copied into the project's `.claude/hooks/` and the entries in `hooks/settings.json` are merged into the project's `.claude/settings.json`, so the team can share them. The root [README](../../../README.md) describes what each one does for the user.
+
+| Hook | Event | Setting |
+| --- | --- | --- |
+| Commit, before and after | `PreToolUse` and `PostToolUse` on Bash, for `git commit` | `commit-hooks` |
+| PR, before and after | `PreToolUse` and `PostToolUse` on Bash, for `gh pr create` | `pr-hooks` |
+| Prompt refinement | `UserPromptSubmit` | `prompt-refinement` |
+| Subagent roles | `UserPromptSubmit` | `subagent-roles` |
+| CI after commits, in auto mode, only if the project has no CI of its own | `Stop` | `ci-hook` |
+
+The hooks pass the agent instructions as context. The before hooks for commits and PRs block the command once, only when the message or description does not follow the convention, so the agent can offer to write it, and let the same command through the second time. The after hooks stay silent when the commit or PR already follows the convention. The `stop-ci` hook runs the project's tests when the agent stops in auto mode after making a commit, and sends the agent back to fix failures, up to 5 attempts (see [verification loops](verification-loops.md)); a `record-head` step on each prompt tells it which commit the session started from.
+
+Each hook can be turned off. The switch lives in `artefacts/harness-preferences.md`, the local, git-ignored file, as a line under a Hooks heading:
+
+```markdown
+## Hooks
+- commit-hooks: off
+```
+
+`hooks: off` turns all of them off. A missing line means on. The user turns them off by telling the agent or running `/workflow-configure`, and each hook tells the user this the first time it speaks.
 
 ## Human sanity check and agent escalation
 
