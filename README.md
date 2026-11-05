@@ -14,7 +14,7 @@ This repo is the frame of reference for future software projects that follow thi
 
 ## Getting started
 
-You can use this workflow to start a new project, with an agent doing the work. Before you begin, install the `jira-design` [skill](skills/jira-design/SKILL.md) and the `workflow-configure` [skill](skills/workflow-configure/SKILL.md) globally by symlinking `skills/jira-design` and `skills/workflow-configure` from this repo into `~/.claude/skills/`, and sign the Atlassian MCP server in.
+You can use this workflow to start a new project, with an agent doing the work. Before you begin, install the `jira-design` [skill](skills/jira-design/SKILL.md), the `workflow-configure` [skill](skills/workflow-configure/SKILL.md) and the `design-system` [skill](skills/design-system/SKILL.md) globally by symlinking `skills/jira-design`, `skills/workflow-configure` and `skills/design-system` from this repo into `~/.claude/skills/`, and sign the Atlassian MCP server in.
 
 1. Start a new repo for your project.
 2. Create `artefacts/requirements.md` and write the goal of the project and its requirements in natural language.
@@ -31,11 +31,14 @@ Initialize mode is for starting a new project that uses the workflow. It:
    - **Hooks:** the commit, PR, prompt and subagent-role [hooks](#hooks) are installed into your project and can be turned off, individually or all at once.
    - **Human sanity check and agent escalation:** on by default. Before the agent opens a PR it shows you what changed and prompts you to review and confirm, and when it cannot fix an issue it escalates to you instead of looping. The time you spend is tracked as human intervention fix time (HIFT) on the ticket, and the hardest cases are logged as failure branches for agents to learn from. You choose to leave it on or turn it off.
    - **Multi-step agent system:** on by default. The primary agent splits the work into independent sub-goals and runs several stateless Claude instances on them in parallel, each with its own context window (the Orchestrator-Subagent pattern), mainly while executing tickets. It is faster on independent work and keeps the primary context small, but costs more tokens and the instances share no context. You choose to leave it on or turn it off.
-3. Runs [task breakdown](docs/development-environment/README.md) on the requirements, creating the epics, user stories and sub-tasks in Jira through the Atlassian MCP server.
-4. Writes the project scope and domain knowledge into project memory.
-5. Asks whether you want to install CodeGraph, and briefly explains its benefits: it indexes your code into a local graph, so the agent finds code with fewer tool calls and tokens. It installs only if you say yes. See [context engineering](docs/development-environment/practices/context-engineering.md) for the full explanation.
+3. Helps you choose the design system with the `design-system` [skill](skills/design-system/SKILL.md), unless a teammate has already chosen one. It asks what you value (flexibility, performance, accessibility, maintainability, scalability) and whether the project is multi-tenant, then recommends a methodology and a component library or approach, and offers to create the Jira epic and stories for it. The agent works out the semantic version of that work itself when it creates the branches. The decision is logged in `artefacts/practice-changes.md`, which is committed to the repo so your team sees it.
+4. Runs [task breakdown](docs/development-environment/README.md) on the requirements, creating the epics, user stories and sub-tasks in Jira through the Atlassian MCP server, including the design system epic if you accepted it.
+5. Writes the project scope and domain knowledge into project memory.
+6. Asks whether you want to install CodeGraph, and briefly explains its benefits: it indexes your code into a local graph, so the agent finds code with fewer tool calls and tokens. It installs only if you say yes. See [context engineering](docs/development-environment/practices/context-engineering.md) for the full explanation.
 
 You can change any of these settings later, at any time, by running `/workflow-configure` or just asking the agent. It updates your local `artefacts/harness-preferences.md` and logs the change in `artefacts/practice-changes.md`, which is committed to the repo so your team can see how the project's practices differ from the defaults and why. See [harness configuration](docs/development-environment/practices/harness-configuration.md).
+
+The design system is the one exception: you can change it with `/workflow-configure` only until the first PR for its epic is opened. After that it is locked, because switching a component stack once code is built on it is a migration, which goes through a new epic instead.
 
 From there, humans estimate the sub-tasks and agents execute them as described in [Using this repo on a project](#using-this-repo-on-a-project).
 
@@ -118,6 +121,9 @@ We maintain high standards of:
 ├── README.md
 ├── AI Forward Workflow.png
 ├── skills/
+│   ├── design-system/
+│   │   ├── SKILL.md
+│   │   └── references/stack-guide.md
 │   ├── jira-design/
 │   │   ├── SKILL.md
 │   │   └── references/templates.md
