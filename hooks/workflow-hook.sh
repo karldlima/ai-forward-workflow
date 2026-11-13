@@ -90,7 +90,7 @@ commit_pre() {
   key="commit-$(command_hash "$command")"
   marker_exists "$key" && return 0
   mark "$key"
-  emit_deny "This commit message does not follow the Conventional Commits convention (type(scope): description, with type one of ${commit_types//|/, }). Before committing: tell the user, offer to write the message for them from the staged changes, and suggest following the project's commit conventions (artefacts/conventional-commits.md in the project, otherwise the AI Forward Workflow default), or offer to help set conventions up if the project has none. If you wrote this message yourself, rewrite it to follow the convention. If the user wants it exactly as written, run the same command again and it will go through. $(turn_off_hint commit-hooks)"
+  emit_deny "This commit message does not follow the Conventional Commits convention (type(scope): description, with type one of ${commit_types//|/, }). Before committing: tell the user, offer to write the message for them from the staged changes, mention that Commitizen (\`npm run commit\`) can prompt them through it if the project has it set up, and suggest following the project's commit conventions (artefacts/conventional-commits.md in the project, otherwise the AI Forward Workflow default), or offer to help set conventions up if the project has none. If you wrote this message yourself, rewrite it to follow the convention. If the user wants it exactly as written, run the same command again and it will go through. $(turn_off_hint commit-hooks)"
 }
 
 commit_post() {
@@ -135,6 +135,95 @@ pr_post() {
   emit_context PostToolUse "The PR just created ($url) does not follow the project's PR conventions: ${problems}Tell the user what is wrong and offer to fix it with \`gh pr edit\`. Do not edit the PR without the user's agreement. $(turn_off_hint pr-hooks)"
 }
 
+pr_review() {
+  hook_disabled pr-review && return 0
+  local command url
+  command="$(json_field '.tool_input.command')"
+  is_pr_create_command "$command" || return 0
+  url="$(printf '%s' "$input" | grep -Eo 'https://[^" \\]+/pull/[0-9]+' | head -1)"
+  [ -n "$url" ] || return 0
+  emit_context PostToolUse "The PR just created ($url) is the last step of the verification loop. Review it now: read the PR's changes with \`gh pr diff $url\`, hand the diff and the changed files to the \`code-reviewer\` subagent for a fresh read (it is read-only and cannot run gh itself), and check each finding yourself before trusting it. Then write the user a quick summary: what the PR changes in a few lines, the findings that hold up with file and line and a suggested fix, and a one-line verdict (ready to merge, or what to fix first). Do not post the summary to the PR, push fixes or merge unless the user agrees. $(turn_off_hint pr-review)"
+}
+
+quote_class="[\"']"
+secret_file_pattern='(^|/)\.env(\.[^/]*)?$|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$'
+secret_file_allowed='\.env\.(example|sample|template|dist)$'
+secret_placeholder='(pattern|regex)[A-Za-z_]*[:=]|example|placeholder|changeme|change_me|your[_-]|xxxx|\$\{|\$[A-Za-z_]|process\.env|os\.environ|<[A-Za-z_ -]+>|\{\{'
+secret_rule_names=("private key" "AWS access key" "GitHub token" "Slack token" "API key (sk- prefix)" "Google API key" "Stripe live key")
+secret_rule_patterns=(
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+  '(AKIA|ASIA)[0-9A-Z]{16}'
+  'gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,}'
+  'xox[abprs]-[A-Za-z0-9-]{10,}'
+  'sk-[A-Za-z0-9_-]{20,}'
+  'AIza[0-9A-Za-z_-]{35}'
+  'sk_live_[0-9A-Za-z]{16,}'
+)
+secret_generic_pattern="(api[_-]?key|secret|token|passw(or)?d)[A-Za-z0-9_-]*${quote_class}?[[:space:]]*[:=][[:space:]]*${quote_class}[^\"'[:space:]]{12,}${quote_class}"
+
+own_secret_scanner_exists() {
+  local file
+  for file in .gitleaks.toml .gitleaksignore .trufflehog.yml .secrets.baseline .talismanrc; do
+    [ -e "$project_dir/$file" ] && return 0
+  done
+  for file in "$project_dir/.pre-commit-config.yaml" "$project_dir"/.husky/* "$project_dir"/.github/workflows/*.y*ml; do
+    [ -f "$file" ] || continue
+    grep -Eqi 'gitleaks|detect-secrets|trufflehog|git-secrets|talisman|secret[-_ ]?scan' "$file" && return 0
+  done
+  return 1
+}
+
+secret_findings() {
+  local diff="$1" names="$2" added i
+  added="$(printf '%s\n' "$diff" | awk '/^\+\+\+ /{file=substr($0,7);next} /^\+/{print file "\t" substr($0,2,400)}')"
+  printf '%s\n' "$names" | grep -Ei -- "$secret_file_pattern" | grep -Evi -- "$secret_file_allowed" | awk '{print $0 ": secret file"}'
+  for i in "${!secret_rule_names[@]}"; do
+    printf '%s\n' "$added" | grep -E -- "${secret_rule_patterns[$i]}" | cut -f1 | sort -u | awk -v rule="${secret_rule_names[$i]}" '{print $0 ": " rule}'
+  done
+  printf '%s\n' "$added" | grep -Ei -- "$secret_generic_pattern" | grep -Evi -- "$secret_placeholder" | cut -f1 | sort -u | awk '{print $0 ": hardcoded credential"}'
+}
+
+commit_stages_all() {
+  printf '%s' "$1" | grep -Eq '(^|[[:space:]])(-[a-zA-Z]*a[a-zA-Z]*|--all)([[:space:]]|$)'
+}
+
+secret_pre() {
+  hook_disabled secret-hook && return 0
+  own_secret_scanner_exists && return 0
+  local command diff names findings
+  command="$(json_field '.tool_input.command')"
+  is_commit_command "$command" || return 0
+  if commit_stages_all "$command"; then
+    diff="$(git -C "$project_dir" diff HEAD -U0 --no-color 2>/dev/null)"
+    names="$(git -C "$project_dir" diff HEAD --name-only --diff-filter=AM 2>/dev/null)"
+  else
+    diff="$(git -C "$project_dir" diff --cached -U0 --no-color 2>/dev/null)"
+    names="$(git -C "$project_dir" diff --cached --name-only --diff-filter=AM 2>/dev/null)"
+  fi
+  findings="$(secret_findings "$diff" "$names" | head -10)"
+  [ -n "$findings" ] || return 0
+  emit_deny "This commit looks like it contains secrets, so it was blocked (file: what matched; the values are not shown):
+$findings
+Do not commit them. Move each value out of the code into an environment variable or the project's secret store, read it from there, keep real values in an ignored file such as .env, and list only the variable names in .env.example. Do not print the values in your replies, logs, Jira or memory. If a value is real and has ever been pushed or shared, tell the user it must be rotated, since removing it from the code does not make it safe again. If you think this is a false positive, tell the user and let them decide; do not turn the hook off yourself. $(turn_off_hint secret-hook)"
+}
+
+secret_post() {
+  hook_disabled secret-hook && return 0
+  own_secret_scanner_exists && return 0
+  local command subject diff names findings
+  command="$(json_field '.tool_input.command')"
+  is_commit_command "$command" || return 0
+  subject="$(git -C "$project_dir" log -1 --format=%s 2>/dev/null)" || return 0
+  case "$subject" in Merge\ *) return 0 ;; esac
+  diff="$(git -C "$project_dir" show HEAD -U0 --no-color --format= 2>/dev/null)"
+  names="$(git -C "$project_dir" show HEAD --name-only --format= --diff-filter=AM 2>/dev/null)"
+  findings="$(secret_findings "$diff" "$names" | head -10)"
+  [ -n "$findings" ] || return 0
+  emit_context PostToolUse "The commit just made looks like it contains secrets (file: what matched; the values are not shown):
+$findings
+Do not push it. Tell the user, remove the values from the code, move them to an environment variable or the project's secret store, and offer to amend the commit with \`git commit --amend\` once they agree. If a value is real, tell the user it must be rotated. Do not print the values yourself. $(turn_off_hint secret-hook)"
+}
+
 prompt_word_count() {
   printf '%s' "$1" | wc -w | tr -d ' '
 }
@@ -168,7 +257,7 @@ subagent_roles() {
   key="roles-$(session_key)"
   marker_exists "$key" && return 0
   mark "$key"
-  emit_context UserPromptSubmit "If the multi-step agent system is on (it is by default; check artefacts/harness-preferences.md) and this prompt is a multi-part task, offer once to set up roles for subagents related to it, as part of multi-agent orchestration (Orchestrator-Subagent pattern): propose two to four roles, each with a one-line responsibility and the tools it needs, for example a researcher, an implementer and a reviewer. Only if the user accepts, save each role as a subagent definition at .claude/agents/<role>.md in the project (frontmatter with name, description and tools, then the role's system prompt), and make sure .claude/agents/ is listed in .gitignore so the roles stay on the user's machine. Say nothing if the task is small. $(turn_off_hint subagent-roles)"
+  emit_context UserPromptSubmit "If the multi-step agent system is on (it is by default; check artefacts/harness-preferences.md) and this prompt is a multi-part task, offer once to set up roles for the agent team related to it, as part of multi-agent orchestration with Claude Code's Agent Teams (you lead, teammates work in parallel on a shared task list): propose two to four roles, each with a one-line responsibility and the tools it needs, for example a researcher, an implementer and a reviewer. Only if the user accepts, save each role as a subagent definition at .claude/agents/<role>.md in the project (frontmatter with name, description and tools, then the role's system prompt), and make sure .claude/agents/ is listed in .gitignore so the roles stay on the user's machine; when you later spawn teammates, name these definitions as the agent type so they get the role's tools and prompt. Say nothing if the task is small. $(turn_off_hint subagent-roles)"
 }
 
 own_ci_exists() {
@@ -178,7 +267,10 @@ own_ci_exists() {
   done
   for workflow in "$project_dir"/.github/workflows/*.y*ml; do
     [ -e "$workflow" ] || continue
-    [ "$(basename "$workflow")" = "ai-forward-workflow-ci.yml" ] || return 0
+    case "$(basename "$workflow")" in
+      ai-forward-workflow-ci.yml|ai-forward-workflow-release-please.yml) ;;
+      *) return 0 ;;
+    esac
   done
   return 1
 }
@@ -248,6 +340,9 @@ case "$hook_name" in
   commit-post) commit_post ;;
   pr-pre) pr_pre ;;
   pr-post) pr_post ;;
+  pr-review) pr_review ;;
+  secret-pre) secret_pre ;;
+  secret-post) secret_post ;;
   prompt-refine) prompt_refine ;;
   subagent-roles) subagent_roles ;;
   record-head) record_head ;;

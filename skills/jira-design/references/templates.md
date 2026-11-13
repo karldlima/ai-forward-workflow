@@ -6,6 +6,10 @@ Default viewports for responsive criteria and Playwright projects: mobile 375x81
 
 Durations are written as `1h 30m`.
 
+Every epic, story and sub-task has a `Design reference` section. It holds `None` until the [`figma-design`](../../figma-design/SKILL.md) skill links the ticket to its Figma tokens, components or pages, and then it lists each link as `<node name> (<layer: tokens, base, shared, domain or page>, <components/<tier>/ for a component>): <Figma URL>`. Leave `None` for a ticket with no UI. The executing agent reads it before planning.
+
+Axe scans (automated accessibility checks in the Playwright tests) are written into QA tests and the Definition of Done only when the design system entry in `artefacts/practice-changes.md` has `Accessibility priority: yes`. Otherwise leave the bracketed axe text out of the templates below. Wherever it is written, axe catches only a limited portion of accessibility bugs, so the manual accessibility criteria still need checking.
+
 ## Epic
 
 ```markdown
@@ -21,6 +25,10 @@ What a user can do once every story in this epic ships.
 
 - Story summary
 - Story summary
+
+## Design reference
+
+None
 
 ## Delivery
 
@@ -63,12 +71,16 @@ Responsive
 Playwright
 - AC1: Given <state>, when the user <action>, then <visible outcome>.
 - AC3: Given <failure condition>, when the user <action>, then <message shown and recovery works>.
-- AC4-AC7: Tab through the flow and assert focus order and visible focus; assert roles and names with `getByRole`; run an axe scan on the page.
+- AC4-AC7: Tab through the flow and assert focus order and visible focus; assert roles and names with `getByRole`[; run an axe scan on the page, with the shared `expectNoAxeViolations` helper].
 - AC8-AC10: Run the flow in mobile, tablet and desktop projects and assert the layout at each.
 
 Unit
 - <function or component>: given <input>, returns or renders <output>.
 - <function or component>: given <edge case>, <behaviour>.
+
+## Design reference
+
+None
 
 ## Delivery
 
@@ -96,7 +108,7 @@ Summary: the work, as a short verb phrase, for example `Build SourceStatusFilter
 ```markdown
 ## Description
 
-What is required, and where it lives (file or folder). Reference the existing components or patterns to follow.
+What is required, and where it lives (file or folder; for a component, its tier and `components/<tier>/` folder). Reference the existing components or patterns to follow.
 
 ## Done when
 
@@ -112,6 +124,10 @@ Unit
 Playwright
 - Only for sub-tasks that render UI, such as a base component or a page: <what is asserted, at which viewports>.
 - Not applicable: this sub-task has no rendered UI.
+
+## Design reference
+
+None
 
 ## Delivery
 
@@ -270,7 +286,7 @@ Story:
 
 - [ ] Every sub-task is Done
 - [ ] Every acceptance criterion is met and verified
-- [ ] Playwright tests pass at mobile, tablet and desktop, including the axe scan
+- [ ] Playwright tests pass at mobile, tablet and desktop[, including the axe scan]
 - [ ] CI passes
 - [ ] No behavioural or visual regression
 - [ ] Human-readable and agent-readable documentation is updated

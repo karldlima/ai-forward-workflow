@@ -36,6 +36,7 @@ Inputs the agent and the team build from. They are files in an [`artefacts/`](ar
 | Harness preferences      | `harness-preferences.md`                                                         | [Agent task/bug execution](#agent-taskbug-execution)                                                        |
 | Practice changes         | `practice-changes.md`                                                            | [Agent task/bug execution](#agent-taskbug-execution)                                                        |
 | CI workflow              | `ci.yml`                                                                         | [Agent task/bug execution](#agent-taskbug-execution), [Verification loops](practices/verification-loops.md) |
+| Release workflow         | [`release-please.yml`](artefacts/release-please.yml)                             | [Releases](#releases)                                                                                       |
 
 
 What they hold:
@@ -47,6 +48,8 @@ What they hold:
 - `harness-preferences.md`**:** the user's answers from `initialize` on execution environment, permissions and the multi-step agent system. It is git-ignored and passed between team members directly. See [harness configuration](practices/harness-configuration.md).
 - `practice-changes.md`**:** the committed log of changes to the practice settings made with `/workflow-configure`: the date, the setting, the old and new value and the reason. It also holds the team's design system decision, made with the [`design-system`](../../skills/design-system/SKILL.md) skill, and whether it has been implemented and so locked. See [harness configuration](practices/harness-configuration.md).
 - `ci.yml`**:** the default GitHub Actions workflow that runs the project's tests on every push and pull request. Used only when the project has no CI of its own. See [verification loops](practices/verification-loops.md).
+
+- `release-please.yml`**:** the GitHub Actions workflow that runs release-please on `main`. See [Releases](#releases).
 
 **Defaults and project overrides.** When a project repo uses this workflow, it defaults to the artefacts in this repo's `artefacts/` folder. If the project has its own `artefacts/` folder at its repo root, the agent uses those instead: a file in the project's folder overrides the default of the same name, and any file the project does not have falls back to the default.
 
@@ -68,13 +71,13 @@ What they hold:
 
 ## Agent task/bug execution
 
-The agent plans from the ticket or bug, backed by [prompt engineering](practices/prompt-engineering.md), [context engineering](practices/context-engineering.md) and [harness configuration](practices/harness-configuration.md). When the multi-step agent system is on (the default), the primary agent runs the independent parts of the work as parallel subagents. It then:
+The agent plans from the ticket or bug, backed by [prompt engineering](practices/prompt-engineering.md), [context engineering](practices/context-engineering.md) and [harness configuration](practices/harness-configuration.md). When the multi-step agent system is on (the default), the primary agent leads an [agent team](practices/harness-configuration.md) for the independent parts of the work, each teammate owning its own files, and uses a subagent or works alone when a team would not help. It then:
 
 1. Checks the ticket's Definition of Ready and records its start (`jira-design` `start` mode).
 2. Initialises the project when it takes on the task: looks in `boilerplate.md` for a skeleton template to bootstrap from, and in `guidelines.md` for the linting rules and Prettier preferences to set up.
-3. Checks `guidelines.md` for the frontend development patterns (folder structure, compound components, HOC wrappers, providers, global state) while thinking of solutions.
-4. Writes code in a new branch, following those patterns, the [branch convention](artefacts/conventional-branch.md) and the [commit convention](artefacts/conventional-commits.md). The branch, commits and PR title carry the Jira issue key.
-5. Runs its own [verification loop](practices/verification-loops.md) against `guidelines.md`, the project's CI automated tests and a `code-reviewer` subagent review, before making the PR. The first time, it asks the user whether the project has CI, and if not, adds the default [CI workflow](artefacts/ci.yml) for them, and in auto mode a stop hook runs the tests after each commit. If the loop cannot pass within its maximum of 5 iterations, it escalates (`escalate` mode).
+3. Checks `guidelines.md` for the frontend development patterns (folder structure, compound components, HOC wrappers, providers, global state) while thinking of solutions. If the ticket has a Figma `Design reference`, it reads that design first (the `figma-design` skill's `reference` mode) and builds from it. It decides each component's tier, base (primitive), shared (composite) or domain (specific), and creates the matching `components/base`, `components/shared` or `components/domain` folder when it does not exist yet.
+4. Writes code in a new branch, following those patterns, the [branch convention](artefacts/conventional-branch.md) and the [commit convention](artefacts/conventional-commits.md), using Commitizen when a human commits. The branch, commits and PR title carry the Jira issue key.
+5. Runs its own [verification loop](practices/verification-loops.md) against `guidelines.md`, the project's CI automated tests (including the Playwright end-to-end tests, with an axe accessibility scan when accessibility was flagged as a priority) and a `code-reviewer` subagent review, before making the PR. The first time, it asks the user whether the project has CI, and if not, adds the default [CI workflow](artefacts/ci.yml) for them, and in auto mode a stop hook runs the tests after each commit. If the loop cannot pass within its maximum of 5 iterations, it escalates (`escalate` mode).
 6. Runs the human sanity check (`sanity-check` mode): shows the user what changed and prompts them to review and confirm before the PR. The review time is logged as HIFT. If the agent cannot fix an issue at any point, it diverts to agent escalation (see [harness configuration](practices/harness-configuration.md)). Both can be turned off at `initialize`.
 7. Writes the PR for the ticket/bug using the [PR description template](artefacts/pr-template.md).
 8. Links the PR to the ticket and logs its own time (`link-pr` mode).
@@ -82,6 +85,12 @@ The agent plans from the ticket or bug, backed by [prompt engineering](practices
 10. Writes progress into [stored memory](practices/context-engineering.md), and the ticket's conversation summary onto the ticket (`save-context` mode) so teammates share it.
 
 
+
+## Releases
+
+The semantic version comes from the commits, not from a person. On GitHub, `jira-design initialize` adds the [release-please](artefacts/release-please.yml) workflow as `.github/workflows/ai-forward-workflow-release-please.yml`. It runs each time a PR is merged into `main` (a push to `main`, because release-please works on what has landed, not on an open PR): it reads the [conventional commits](artefacts/conventional-commits.md) since the last release, works out the next version (`fix:` patch, `feat:` minor, `!` or a `BREAKING CHANGE:` footer major) and opens or updates a release PR holding the version bump and changelog. A human merges that release PR when they want to release, and release-please then creates the tag and GitHub release. The agent never tags or releases itself. Commits written with [Commitizen](artefacts/conventional-commits.md) or by the agent to the same convention are what make this work.
+
+Two settings on the GitHub repo matter: "Allow GitHub Actions to create and approve pull requests" must be on, and a PR opened with the default `GITHUB_TOKEN` does not trigger other workflows, so CI will not run on the release PR unless the workflow is given a personal access token instead.
 
 ## Memory conservation
 

@@ -19,6 +19,21 @@ jobs:
         with:
           node-version: lts/*
 
+      - name: Install (Node)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable
+            pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable
+            yarn install --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
       - name: Test (Node)
         if: ${{ hashFiles('package.json') != '' }}
         run: |
@@ -27,20 +42,20 @@ jobs:
             exit 0
           fi
           if [ -f pnpm-lock.yaml ]; then
-            corepack enable
-            pnpm install --frozen-lockfile
             pnpm test
           elif [ -f yarn.lock ]; then
-            corepack enable
-            yarn install --frozen-lockfile
             yarn test
-          elif [ -f package-lock.json ]; then
-            npm ci
-            npm test
           else
-            npm install
             npm test
           fi
+
+      - name: Install Playwright browsers
+        if: ${{ hashFiles('package.json') != '' && hashFiles('playwright.config.*') != '' }}
+        run: npx playwright install --with-deps
+
+      - name: E2E (Playwright)
+        if: ${{ hashFiles('package.json') != '' && hashFiles('playwright.config.*') != '' }}
+        run: npx playwright test
 
       - name: Set up Python
         if: ${{ hashFiles('pyproject.toml', 'pytest.ini', 'tox.ini') != '' }}
