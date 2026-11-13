@@ -24,6 +24,18 @@ A design system is built in this order, each layer on the one before:
 4. **Styling layer:** Tailwind utilities, CSS variables and CVA. Multi-tenancy is decided here.
 5. **Documentation and CI:** Storybook, and regression testing through Jest and Enzyme, or RTL unit tests, on the Storybook components.
 
+## Component tiers
+
+Every component belongs to one of three tiers, and the workflow creates one folder per tier inside the project's `components` folder:
+
+| Tier | Folder | What it is | May import from |
+| --- | --- | --- | --- |
+| Base | `components/base` | A primitive: a single, generic building block such as a button, input or icon. No business knowledge | Nothing outside `base` |
+| Shared | `components/shared` | A composite: a combination of several base components, reusable across features, such as a search field or a modal | `base` |
+| Domain | `components/domain` | Specific to a product domain: a combination of base and shared components, perhaps with bespoke parts, such as a `SourceStatusFilter` | `base` and `shared` |
+
+Dependencies point one way, from domain to shared to base. A component moves down a tier when a second feature needs it, and a base component never learns about the domain.
+
 ## Styling methodologies
 
 | Styling methodology | Onboarding | Naming convention | Reusability and scaling | Multi-tenancy |

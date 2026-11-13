@@ -7,7 +7,7 @@ The setup of the execution environment, tools and guardrails for the workflow. I
 **Consists of**
 
 - **Execution environment:** localhost, Docker container or cloud workspace. See [Execution environment](#execution-environment)
-- **Multi-step agent system:** breaks a task into independent actions with sub-goals via the Orchestrator-Subagent pattern. The primary agent spins up several stateless Claude instances in parallel, each with its own context window. See [Multi-step agent system](#multi-step-agent-system)
+- **Multi-step agent system:** breaks a task into independent actions with sub-goals, using Claude Code's Agent Teams: the primary agent leads a team of Claude instances that work in parallel, each with its own context window, share a task list and message each other. See [Multi-step agent system](#multi-step-agent-system)
 - **Tools:** shell access, filesystem tools (grep, find), package managers, MCP servers, skills, with a set of [default tools](#default-tools). See [Tools and permissions](#tools-and-permissions)
 - **Agent verification loop:** its own practice, adjustable during `initialize`. See [Verification loops](verification-loops.md)
 - **Human sanity check and agent escalation:** on by default, and chosen during `initialize`. See [Human sanity check and agent escalation](#human-sanity-check-and-agent-escalation)
@@ -61,27 +61,48 @@ CodeGraph is explained in [context engineering](context-engineering.md), and `in
 
 ## Multi-step agent system
 
-The multi-step agent system is **on by default**. It breaks a task into multiple independent actions, each with a sub-goal, that together achieve the long-term goal. It uses the **Orchestrator-Subagent pattern**:
+The multi-step agent system is **on by default**. It breaks a task into multiple independent actions, each with a sub-goal, that together achieve the long-term goal. It leans on Claude Code's [Agent Teams](https://code.claude.com/docs/en/agent-teams), an orchestrator and workers pattern:
 
-- The primary agent (the orchestrator) plans the work and splits it into independent sub-goals.
-- It spins up several stateless Claude instances (subagents) in parallel, each with its own context window and only the context its sub-goal needs.
-- The subagents return their results and the primary agent combines them.
+- The primary agent is the team lead. It plans the work, splits it into independent sub-goals and creates them as tasks on the team's shared task list.
+- The teammates are separate Claude Code instances, each with its own context window, working in parallel. They claim tasks, work them, and message each other and the lead directly, so they can share findings and challenge each other instead of only reporting back.
+- The lead synthesises what the teammates produce.
+
+Agent Teams are **experimental and off by default** in Claude Code. When the user leaves the multi-step system on, `initialize` turns them on for the project by setting `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` to `"1"` in the project's `.claude/settings.json`, and `/workflow-configure` sets it to `"0"` when the user turns the system off. Teams only form in an interactive session: in non-interactive runs (`claude -p`) the agent uses subagents or works alone.
+
+Not everything needs a team. The agent picks the lightest option that fits:
+
+| Work | Use |
+| --- | --- |
+| Independent parts that benefit from discussion, such as parallel research, review, modules that touch different files, or competing hypotheses on a bug | An agent team |
+| A focused one-shot job where only the result matters, such as the `code-reviewer` review in the [verification loop](verification-loops.md) | A subagent |
+| Sequential work, work with many dependencies, or edits to the same file | The primary agent alone |
 
 It is used mainly during [agent task/bug execution](../README.md), where the independent parts of a ticket can be worked at the same time.
 
 | Pros | Cons |
 | --- | --- |
-| Faster on independent work, because instances run in parallel | More tokens, because every instance has its own context window |
-| The primary agent's context stays small and focused | Instances are stateless and share no context, so hand-offs must be explicit |
-| Each instance works on one sub-goal | Parallel edits to the same files can conflict, and runs are harder to debug |
+| Faster on independent work, because teammates run in parallel | Significantly more tokens, because every teammate is a full Claude Code session |
+| The lead's context stays small and focused | A teammate does not inherit the lead's conversation, so each spawn prompt must carry the ticket's context |
+| Teammates share a task list and message each other, so findings are challenged and hand-offs are tracked | Parallel edits to the same files overwrite each other, and runs are harder to debug |
+| Each teammate works on one sub-goal | Experimental: no session resumption for in-process teammates, task status can lag, one team per session and no nested teams |
 
-During `initialize` the agent explains these trade-offs and asks the user whether to leave it on or turn it off. With it off, the primary agent works through the sub-goals one at a time itself.
+During `initialize` the agent explains these trade-offs and asks the user whether to leave it on or turn it off. With it off, the primary agent works through the sub-goals one at a time itself, and uses subagents only for focused one-shot jobs.
 
-### Subagent roles
+### How the agent runs a team
 
-A role is what a subagent is for: a name, a one-line responsibility, and the tools it needs, for example a researcher that reads and summarises, an implementer that writes the code, and a reviewer that checks it. Roles keep each subagent's context window small and its job narrow.
+- **Start with 3 to 5 teammates**, and size tasks as self-contained units with a clear deliverable, about 5 to 6 per teammate. Scale up only when the work really is parallel.
+- **Give each teammate its own files**, so no two teammates edit the same file. The lead splits the work along file boundaries.
+- **Put the context in the spawn prompt**: the ticket, its acceptance criteria, the files and patterns involved. Name the teammates so they can be addressed in later prompts.
+- **The lead waits for its teammates** instead of implementing their tasks itself, then synthesises the results.
+- **Permissions are the lead's.** Teammates start in the lead's permission mode and run under its allow and deny rules, and their permission prompts appear in the lead's session. Per-teammate modes cannot be set at spawn, so the user's permissions and the [secret management](verification-loops.md) guardrails apply to the whole team.
+- **Everything still ends in one verification loop.** The lead runs the [verification loop](verification-loops.md) on the combined work before the PR, not each teammate on its own part.
+- **Start with research and review** when the user is new to teams, since they have clear boundaries and need no parallel code edits.
 
-When the multi-step agent system is on, the `subagent-roles` [hook](#hooks) fires when the user submits a multi-part prompt, at most once per session. The agent then offers to set up roles for subagents related to that prompt: it proposes two to four roles and the user accepts, edits or declines them. Accepted roles are saved locally, on the user's machine, as subagent definitions in `.claude/agents/<role>.md` in the project (frontmatter with the name, description and tools, then the role's system prompt), and `.claude/agents/` is added to the project's `.gitignore` so they are never committed. The primary agent then hands the matching sub-goals to those roles when it orchestrates the work. A role can be edited or deleted at any time by editing its file or asking the agent.
+### Roles
+
+A role is what a teammate is for: a name, a one-line responsibility, and the tools it needs, for example a researcher that reads and summarises, an implementer that writes the code, and a reviewer that checks it. Roles keep each teammate's context window small and its job narrow.
+
+When the multi-step agent system is on, the `subagent-roles` [hook](#hooks) fires when the user submits a multi-part prompt, at most once per session. The agent then offers to set up roles for the work: it proposes two to four roles and the user accepts, edits or declines them. Accepted roles are saved locally, on the user's machine, as subagent definitions in `.claude/agents/<role>.md` in the project (frontmatter with the name, description and tools, then the role's system prompt), and `.claude/agents/` is added to the project's `.gitignore` so they are never committed. Claude Code lets a definition be reused as a teammate: the lead spawns a teammate "using the `<role>` agent type", and the teammate gets the definition's tools, model and prompt. The same definition still works as a plain subagent. The definition's `skills` are not applied to a teammate, which loads skills from the project and user settings instead. A role can be edited or deleted at any time by editing its file or asking the agent.
 
 ## Hooks
 
@@ -91,8 +112,10 @@ The workflow's Claude Code hooks are part of the harness. They are installed by 
 | --- | --- | --- |
 | Commit, before and after | `PreToolUse` and `PostToolUse` on Bash, for `git commit` | `commit-hooks` |
 | PR, before and after | `PreToolUse` and `PostToolUse` on Bash, for `gh pr create` | `pr-hooks` |
+| PR review | `PostToolUse` on Bash, for `gh pr create` | `pr-review` |
+| Secret scan, before and after, unless the project has its own secret scanner | `PreToolUse` and `PostToolUse` on Bash, for `git commit` | `secret-hook` |
 | Prompt refinement | `UserPromptSubmit` | `prompt-refinement` |
-| Subagent roles | `UserPromptSubmit` | `subagent-roles` |
+| Roles for the team (subagent definitions) | `UserPromptSubmit` | `subagent-roles` |
 | CI after commits, in auto mode, only if the project has no CI of its own | `Stop` | `ci-hook` |
 
 The hooks pass the agent instructions as context. The before hooks for commits and PRs block the command once, only when the message or description does not follow the convention, so the agent can offer to write it, and let the same command through the second time. The after hooks stay silent when the commit or PR already follows the convention. The `stop-ci` hook runs the project's tests when the agent stops in auto mode after making a commit, and sends the agent back to fix failures, up to 5 attempts (see [verification loops](verification-loops.md)); a `record-head` step on each prompt tells it which commit the session started from.

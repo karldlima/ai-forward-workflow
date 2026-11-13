@@ -1,6 +1,6 @@
 # Commit convention
 
-Agents and humans write commits following [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/). It is used in [Agent task/bug execution](../README.md).
+Agents and humans write commits following [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/), and [Commitizen](https://commitizen-tools.github.io/commitizen/) helps write them. It is used in [Agent task/bug execution](../README.md). The commit types also drive [release-please](release-please.yml), which reads them to work out the next version and write the changelog.
 
 ## Structure
 
@@ -33,6 +33,14 @@ Agents and humans write commits following [Conventional Commits 1.0.0](https://w
 - A body comes after one blank line and is free-form.
 - Footers come after one blank line, as `token: value`. Tokens use hyphens instead of spaces, except `BREAKING CHANGE`.
 - Mark breaking changes with `!` before the colon, a `BREAKING CHANGE:` footer (uppercase), or both.
+
+## Commitizen
+
+Commitizen is a command line tool that prompts for the type, scope, description, body, breaking change and issue references, and builds the message from the answers, so a commit follows the convention without anyone remembering it. It makes writing the message easier; it does not stop a non-conforming one, which the commit [hooks](../../../README.md) still check.
+
+- **Setup.** `jira-design initialize` sets it up in Node projects: the `commitizen` and `cz-conventional-changelog` dev dependencies, `"config": { "commitizen": { "path": "cz-conventional-changelog" } }` in `package.json`, and a `"commit": "cz"` script. A project that is not a Node project is told so and keeps the convention without the tool.
+- **Humans** run `npm run commit` (or `npx cz`) instead of `git commit`, and answer the prompts. At the issue references prompt, type `Refs: <ISSUE-KEY>`, so the footer the workflow expects is written.
+- **Agents** cannot answer interactive prompts, so they write the message directly to this convention, with the same types and the `Refs:` footer, and run `git commit -m`. The commit hooks check it.
 
 ## Examples
 
